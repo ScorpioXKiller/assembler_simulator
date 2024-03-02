@@ -1,0 +1,16 @@
+# Compiled object files
+*.o
+
+# Executables
+*.exe
+*.out
+
+# Compiled libraries
+*.a
+*.so
+
+# Build directories
+build/
+bin/
+# Visual Studio Code
+.vscode/
