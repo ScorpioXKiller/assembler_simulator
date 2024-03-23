@@ -9,8 +9,5 @@
 *.a
 *.so
 
-# Build directories
-build/
-bin/
 # Visual Studio Code
 .vscode/
