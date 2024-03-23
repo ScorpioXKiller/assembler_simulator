@@ -11,3 +11,5 @@
 
 # Visual Studio Code
 .vscode/
+input/
+output/
