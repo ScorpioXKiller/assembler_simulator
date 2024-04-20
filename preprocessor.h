@@ -1,3 +1,6 @@
+#ifndef __PREPROCESSOR__H__
+#define __PREPROCESSOR__H__
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,3 +29,5 @@ void free_macro_list(Macro *macro_list);
 size_t memory_size_of_macro_list(Macro *macro_list);
 
 void preprocess(const char *input_file_name, const char *output_file_name);
+
+#endif
