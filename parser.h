@@ -1,17 +1,14 @@
 #ifndef __PARSER__H__
 #define __PARSER__H__
 
+/**
+ * @file parser.h
+ * @brief This file contains the definition and manipulation functions for the
+ * parser.
+ */
+
+#include "consts.h"
 #include "lexer.h"
-#include <stdbool.h>
-
-#define MAX_LABEL_LENGTH 31
-#define MAX_LINE_LENGTH 80
-#define INST_TABLE_SIZE 16
-#define KEYWORDS_COUNT 29
-
-#define OPERAND(index) ((index) == 0 ? "source" : "destination")
-#define IS_REGISTER(str)                                                       \
-  (str[0] == 'r' && str[1] >= '0' && str[1] <= '7' && str[2] == '\0')
 
 /**
  * @brief Abstract Syntax Tree (AST) structure
@@ -29,9 +26,9 @@
  */
 typedef struct AST {
   char *syntax_error;
-  char label_name[MAX_LABEL_LENGTH + 1];
+  char label_name[MAX_LABEL_LENGTH];
 
-  enum { INSTRUCTION, DIRECTIVE, COMMENT, DEFINE, ERROR } ASTType;
+  enum { INSTRUCTION, DIRECTIVE, COMMENT, DEFINE, ERROR, EMPTY } ASTType;
 
   union {
     /* Instruction */
@@ -65,21 +62,30 @@ typedef struct AST {
                REGISTER   /* register addressing */
         } OperandType;
 
-        enum {
-          NUMBER,
-          LABEL
-        } IndexType; /* choose index option between number and label */
-
         union {
-          int number;
-          char *label;
-          int reg;
           struct {
-            char *label;
+            enum { IMNUMBER, IMLABEL } ImmediateType;
 
-            union { /* choose index option between number and label */
+            union {
               int number;
-              char *label;
+              char label[MAX_LABEL_LENGTH];
+            } ImmediateOpt;
+          } Immediate;
+
+          char label[MAX_LABEL_LENGTH];
+          int reg;
+
+          struct {
+            char label[MAX_LABEL_LENGTH];
+
+            enum {
+              INNUMBER,
+              INLABEL
+            } IndexType; /* choose index option between number and label */
+
+            union {
+              int number;
+              char label[MAX_LABEL_LENGTH];
             } IndexOpt;
           } Index;
         } OperandOpt;
@@ -92,12 +98,12 @@ typedef struct AST {
 
       union {
         struct {
-          int *numbers;
+          char **elements;
           int count;
         } Data;
 
         char *string;
-        char label[MAX_LABEL_LENGTH + 1];
+        char label[MAX_LABEL_LENGTH];
       } ParamsOpt;
     } Dir;
 
@@ -112,48 +118,123 @@ typedef struct AST {
   } ASTOpt;
 } AST;
 
-typedef struct Isntruction {
-  char *name;
-  int opcode;
-  const char *source_operand;
-  const char *destination_operand;
-} Instruction;
+/**
+ * @brief Parses tokens into an AST.
+ *
+ * @param tokens The tokens to parse.
+ * @param line_number The line number for error reporting.
+ * @param input_file_name The name of the input file for error reporting.
+ * @return A pointer to the AST.
+ */
+AST *parse_tokens(Tokens *tokens, int line_number, const char *input_file_name);
 
-typedef struct Const {
-  char *name;
-  int value;
-  struct Const *next;
-} Const;
-
-typedef struct ConstList {
-  Const *head;
-} ConstList;
-
-void add_const_to_list(ConstList *list, char *name, int value);
-
-int get_operands_count(AST *ast);
-
-bool is_label_valid(AST *ast, char *label);
-
-bool is_number_valid(char *str);
-
-bool is_instruction_valid(char *inst, int *instIndex);
-
-void parse_instruction(char *inst, AST *ast);
-
-bool is_has_operand(AST *ast);
-
-bool is_operand_type_valid(AST *ast, int index);
-
-int identify_operand(char *operand, int index, AST *ast);
-
-AST *parse_tokens(Tokens *tokens);
-
+/**
+ * @brief Frees the memory allocated for an AST.
+ *
+ * @param ast The AST to free.
+ */
 void free_ast(AST *ast);
 
-void choose_operand_option(AST *ast, int index, int operand_type,
-                           char *operand_value);
+/**
+ * @brief Checks if an instruction is valid.
+ *
+ * @param inst The instruction to check.
+ * @param instIndex A pointer to an integer where the index of the instruction
+ * will be stored.
+ * @return true if the instruction is valid, false otherwise.
+ */
+bool is_instruction_valid(char *inst, int *instIndex);
 
+/**
+ * @brief Parses an instruction into an AST.
+ *
+ * @param inst The instruction to parse.
+ * @param ast The AST to store the parsed instruction.
+ */
+void parse_instruction(char *inst, AST *ast);
+
+/**
+ * @brief Gets the number of operands in an AST.
+ *
+ * @param ast The AST to check.
+ * @return The number of operands.
+ */
+int get_operands_count(AST *ast);
+
+/**
+ * @brief Checks if an AST has an operand.
+ *
+ * @param ast The AST to check.
+ * @return true if the AST has an operand, false otherwise.
+ */
+bool is_has_operand(AST *ast);
+
+/**
+ * @brief Checks if the type of an operand in an AST is valid.
+ *
+ * @param ast The AST to check.
+ * @param index The index of the operand to check.
+ * @return true if the operand type is valid, false otherwise.
+ */
+bool is_operand_type_valid(AST *ast, int index);
+
+/**
+ * @brief Chooses an operand option for an AST.
+ *
+ * @param ast The AST to modify.
+ * @param index The index of the operand to modify.
+ * @param operand_type The type of the operand.
+ * @param operand_value The value of the operand.
+ * @param line_number The line number for error reporting.
+ * @param input_file_name The name of the input file for error reporting.
+ */
+void choose_operand_option(AST *ast, int index, int operand_type,
+                           char *operand_value, int line_number,
+                           const char *input_file_name);
+
+/**
+ * @brief Identifies an operand in an AST.
+ *
+ * @param operand The operand to identify.
+ * @param index The index of the operand.
+ * @param ast The AST to modify.
+ * @param line_number The line number for error reporting.
+ * @param input_file_name The name of the input file for error reporting.
+ * @return The type of the operand.
+ */
+int identify_operand(char *operand, int index, AST *ast, int line_number,
+                     const char *input_file_name);
+
+/**
+ * @brief Checks if a label in an AST is valid.
+ *
+ * @param ast The AST to check.
+ * @param label The label to check.
+ * @param line_number The line number for error reporting.
+ * @param input_file_name The name of the input file for error reporting.
+ * @return true if the label is valid, false otherwise.
+ */
+bool is_label_valid(AST *ast, char *label, int line_number,
+                    const char *input_file_name);
+
+/**
+ * @brief Check if a string is a digit
+ *
+ * @param str The string to check
+ * @param max The maximum value the digit can have
+ * @param min The minimum value the digit can have
+ * @param result The result of the check
+ * @return int 0 if the string is a digit, 1 - not a digit, -1 - out of range
+ */
+bool is_number_valid(char *str);
+
+/**
+ * @brief Writes an error message.
+ *
+ * @param ast The AST for context.
+ * @param message The error message.
+ * @param ... Variable arguments for the error message.
+ */
 void write_error_message(AST *ast, const char *message, ...);
 
 #endif

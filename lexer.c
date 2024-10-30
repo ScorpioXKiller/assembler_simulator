@@ -1,14 +1,16 @@
 #include "lexer.h"
-#include "utils.h"
+#include "consts.h"
+#include "errors.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-Tokens split_line_to_tokens(char *line) {
+Tokens *split_line_to_tokens(char *line) {
   int strings_count = 0;
-  char *s = NULL;
+  char *str = NULL;
 
-  Tokens tokens = {0};
+  Tokens *tokens = (Tokens *)malloc(sizeof(Tokens));
+  tokens->tokens = NULL;
 
   while (isspace(*line)) {
     line++;
@@ -18,59 +20,61 @@ Tokens split_line_to_tokens(char *line) {
     return tokens;
   }
 
-  s = strtok(line, " \t");
+  if (strlen(line) > MAX_LINE_LENGTH) {
+    printf(ERROR_LINE_TOO_LONG, strings_count++, MAX_LINE_LENGTH);
+    return tokens;
+  }
 
-  while (s) {
-    if (strrchr(s, ',') != NULL) {
-      int i = 0;
-      char temp = s[i];
+  if (strlen(line) > 0 && line[strlen(line) - 1] == '\n') {
+    line[strlen(line) - 1] = '\0';
+  }
 
-      while (s[i] != '\0') {
-        if (s[i] == ',') {
-          tokens.tokens = (char **)realloc(tokens.tokens, (strings_count + 1) *
-                                                              sizeof(char *));
+  str = strtok(line, " \t");
 
-          if (tokens.tokens == NULL) {
-            fprintf(stderr, "Memory allocation failed\n");
-            exit(1);
-          }
+  while (str != NULL) {
+    char *comma = strchr(str, ',');
+    int commas_count = 0;
+    int i = 0;
 
-          tokens.tokens[strings_count] = strdup(",");
-          strings_count++;
-          i++;
-        } else {
-          int start = i;
-
-          while (s[i] != ',' && s[i] != '\0') {
-            i++;
-          }
-
-          temp = s[i];
-          s[i] = '\0';
-          tokens.tokens = (char **)realloc(tokens.tokens, (strings_count + 1) *
-                                                              sizeof(char *));
-          tokens.tokens[strings_count] = strdup(&s[start]);
-          strings_count++;
-          s[i] = temp;
-        }
+    if (comma) {
+      for (i = 0; i < strlen(comma); i++) {
+        commas_count++;
       }
-    } else {
-      tokens.tokens =
-          (char **)realloc(tokens.tokens, (strings_count + 1) * sizeof(char *));
+      *comma = '\0';
+    }
 
-      if (tokens.tokens == NULL) {
-        fprintf(stderr, "Memory allocation failed\n");
-        exit(1);
+    if (str[0] != '\0') {
+      tokens->tokens = (char **)realloc(tokens->tokens,
+                                        (strings_count + 1) * sizeof(char *));
+      if (tokens->tokens == NULL) {
+        fprintf(stderr, ERROR_OUT_OF_MEMORY);
+        exit(EXIT_FAILURE);
       }
 
-      tokens.tokens[strings_count] = strdup(s);
+      tokens->tokens[strings_count] = strdup(str);
       strings_count++;
     }
 
-    s = strtok(NULL, " \t");
+    if (comma) {
+      tokens->tokens = (char **)realloc(
+          tokens->tokens, (strings_count + commas_count) * sizeof(char *));
+      if (tokens->tokens == NULL) {
+        fprintf(stderr, ERROR_OUT_OF_MEMORY);
+        exit(EXIT_FAILURE);
+      }
+
+      for (i = 0; i < commas_count; i++) {
+        tokens->tokens[strings_count] = strdup(",");
+        strings_count++;
+      }
+
+      str = strtok(NULL, " \t");
+    } else {
+      str = strtok(NULL, " \t");
+    }
   }
 
-  tokens.count = strings_count;
+  tokens->count = strings_count;
 
   return tokens;
 }
@@ -80,7 +84,9 @@ void remove_token(Tokens *t, const char *token_to_remove) {
 
   for (i = 0; i < t->count; i++) {
     if (strcmp((t->tokens)[i], token_to_remove) == 0) {
-      free((t->tokens)[i]);
+      char **temp = NULL;
+
+      t->tokens[i] = NULL;
 
       for (j = i; j < t->count - 1; j++) {
         (t->tokens)[j] = (t->tokens)[j + 1];
@@ -89,27 +95,29 @@ void remove_token(Tokens *t, const char *token_to_remove) {
       (t->tokens)[t->count - 1] = NULL;
       t->count--;
 
-      t->tokens = realloc(t->tokens, t->count * sizeof(char *));
+      temp = realloc(t->tokens, t->count * sizeof(char *));
 
-      if (t->tokens == NULL) {
-        perror("realloc failed");
+      if (temp == NULL) {
+        fprintf(stderr, ERROR_OUT_OF_MEMORY);
         exit(EXIT_FAILURE);
       }
+
+      t->tokens = temp;
 
       break;
     }
   }
 }
 
-Tokens *free_tokens(Tokens *tokens) {
+void free_tokens(Tokens *tokens) {
   int i = 0;
 
   for (i = 0; i < tokens->count; i++) {
-    free(tokens->tokens[i]);
+    if (tokens->tokens[i] != NULL) {
+      tokens->tokens[i] = NULL;
+    }
   }
 
   free(tokens->tokens);
-  tokens->count = 0;
-
-  return tokens;
+  free(tokens);
 }
