@@ -1,26 +1,47 @@
 /* TODO: remove strdup and getline functions and use the ones from the standard
  * library instead.*/
+#include "consts.h"
+#include "errors.h"
 #define _POSIX_C_SOURCE 200809L
 #include "preprocessor.h"
+#include "utils.h"
+#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
+#include <sys/types.h>
 
-void preprocess(const char *input_file_name, const char *output_file_name) {
+extern char *keywords[KEYWORDS_COUNT];
+
+char *preprocess(const char *file_name) {
+
   char *line_buffer = NULL;
   size_t len = 0;
   ssize_t read;
   Macro *macro_list = NULL;
+  int line_number = 1;
 
-  FILE *input_file = fopen(input_file_name, "r");
-  FILE *output_file = fopen(output_file_name, "w");
+  FILE *as_file = NULL;
+  FILE *am_file = NULL;
 
-  while ((read = getline(&line_buffer, &len, input_file)) != -1) {
+  char *as_file_name = NULL;
+  char *am_file_name = NULL;
+
+  as_file_name = STR_CAT_WITH_MALLOC(file_name, ".as");
+  am_file_name = STR_CAT_WITH_MALLOC(file_name, ".am");
+
+  as_file = fopen(as_file_name, "r");
+  am_file = fopen(am_file_name, "w");
+
+  if (!as_file || !am_file) {
+    return NULL;
+  }
+
+  while ((read = getline(&line_buffer, &len, as_file)) != -1) {
     size_t leading_spaces = strspn(line_buffer, " ");
 
     if (strncmp(line_buffer + leading_spaces, "mcr", 3) == 0) {
-      Macro *new_macro = get_macro(line_buffer);
+      Macro *new_macro = get_macro(line_buffer, &line_number);
 
-      while ((read = getline(&line_buffer, &len, input_file)) != -1 &&
+      while ((read = getline(&line_buffer, &len, as_file)) != -1 &&
              strstr(line_buffer, "endmcr") == NULL) {
         new_macro->body = realloc(new_macro->body,
                                   (new_macro->num_lines + 1) * sizeof(char *));
@@ -36,24 +57,29 @@ void preprocess(const char *input_file_name, const char *output_file_name) {
         int i;
 
         for (i = 0; i < macro->num_lines; i++) {
-          fprintf(output_file, "%s", macro->body[i]);
+          fprintf(am_file, "%s", macro->body[i]);
         }
 
       } else {
-        char *trimmed_line = line_buffer + strspn(line_buffer, " ");
-
-        if (*trimmed_line != '\0' && *trimmed_line != '\n') {
-          fprintf(output_file, "%s", line_buffer);
-        }
+        fprintf(am_file, "%s", line_buffer);
       }
     }
+
+    line_number++;
   }
 
   free(line_buffer);
   free_macro_list(macro_list);
+
+  fclose(am_file);
+  fclose(as_file);
+
+  free(as_file_name);
+
+  return am_file_name;
 }
 
-Macro *get_macro(char *line_buffer) {
+Macro *get_macro(char *line_buffer, int *line_number) {
   char *name = NULL;
   Macro *new_macro = (Macro *)malloc(sizeof(Macro));
   new_macro->next = NULL;
@@ -61,8 +87,20 @@ Macro *get_macro(char *line_buffer) {
   name = strtok(line_buffer, " ");
   name = strtok(NULL, " ");
 
+  name[strlen(name) - 1] = '\0';
+
   new_macro->name = malloc(strlen(name) + 1);
   if (new_macro->name != NULL) {
+    int i;
+
+    for (i = 0; i < KEYWORDS_COUNT; i++) {
+      if (strcmp(name, keywords[i]) == 0) {
+        printf(ERROR_MACRO_NAME, name, *line_number, "file");
+        free(new_macro->name);
+        free(new_macro);
+      }
+    }
+
     strcpy(new_macro->name, name);
   } else {
     free(new_macro);
@@ -93,7 +131,9 @@ Macro *find_macro(Macro *macro_list, const char *name) {
   Macro *current_macro = macro_list;
 
   while (current_macro != NULL) {
-    if (strcmp(current_macro->name, strtok(macro_name, " ")) == 0) {
+    macro_name[strlen(macro_name) - 1] = '\0';
+
+    if (strcmp(current_macro->name, macro_name + strspn(name, " ")) == 0) {
       free(macro_name);
       return current_macro;
     }
@@ -102,18 +142,6 @@ Macro *find_macro(Macro *macro_list, const char *name) {
 
   free(macro_name);
   return NULL;
-}
-
-void print_macro_list(Macro *macro_list) {
-  Macro *current_macro = macro_list;
-  int i;
-  while (current_macro != NULL) {
-    printf("Macro name: %s\n", current_macro->name);
-    for (i = 0; i < current_macro->num_lines; i++) {
-      printf("%s", current_macro->body[i]);
-    }
-    current_macro = current_macro->next;
-  }
 }
 
 void free_macro_list(Macro *macro_list) {
@@ -135,32 +163,3 @@ void free_macro_list(Macro *macro_list) {
     current_macro = next_macro;
   }
 }
-
-size_t memory_size_of_macro_list(Macro *macro_list) {
-  size_t size = 0;
-  Macro *current_macro = macro_list;
-  int i;
-
-  while (current_macro != NULL) {
-    size += sizeof(Macro);
-    size += strlen(current_macro->name) + 1;
-
-    for (i = 0; i < current_macro->num_lines; i++) {
-      size += strlen(current_macro->body[i]) + 1;
-    }
-
-    size += current_macro->num_lines * sizeof(char *);
-
-    current_macro = current_macro->next;
-  }
-
-  return size;
-}
-
-/*char *strdup(const char *s) {
-  char *d = malloc(strlen(s) + 1);
-  if (d != NULL) {
-    strcpy(d, s);
-  }
-  return d;
-}*/

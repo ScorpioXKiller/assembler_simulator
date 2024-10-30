@@ -1,65 +1,80 @@
-#include "lexer.h"
-#include "parser.h"
+/**
+ * @file main.c
+ * @brief This file contains the main function for the assembler simulator
+ * program.
+ * @author Dmitriy Gorodov
+ * @ID 342725405
+ * @version 1.0
+ * @date 25.04.2024
+ */
+
+#include "assembler.h"
+#include "backend.h"
+#include "errors.h"
 #include "preprocessor.h"
 
-int main() {
-  char *txt_file = "input/assembly.txt";
-  char *am_file = "output/output.am";
-  char str[] = "MAIN: mov arr[2], r1";
-  /*char str[] = "XYZ: .data 1, 10";*/
-  /*char str[] = ".string \"abcdef\"";*/
-  /*char str[] =
-     "DFGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG" "GGRES:
-     .entry MAIN";*/
-  Tokens tokens = {0};
-  AST *root = NULL;
+/**
+ * @brief The main function for the assembler simulator program.
+ *
+ * @details This function reads the assembly files, preprocesses them, and then
+ * performs the first and second passes of the assembler. It then prints the
+ * object file, entry file, and external file for the translated assembly code.
+ * @note The main function takes the assembly file names as command-line
+ * @param argc The number of command-line arguments.
+ * @param argv The array of command-line arguments.
+ * @return The exit status of the program.
+ */
+int main(int argc, char **argv) {
+  int i = 0;
+  char *am_file_name = NULL;
+  FILE *am_file = NULL;
 
-  /*int n = 0;
-  char *binary = NULL;
-  char *base4 = NULL;
-  char *encoded = NULL;*/
+  Translator *translator = NULL;
+  Symbol *symbol_table = NULL;
 
-  preprocess(txt_file, am_file);
-  printf("Preprocessing completed.\n");
+  int instruction_counter = 0;
+  int data_counter = 0;
 
-  tokens = split_line_to_tokens(str);
-  root = parse_tokens(&tokens);
+  if (argc < 2) {
+    fprintf(stderr, ERROR_MISSING_FILE_NAME);
+  }
 
-  free_ast(root);
-  printf("\n");
+  for (i = 1; i < argc; i++) {
+    am_file_name = preprocess(argv[i]);
 
-  if (tokens.count) {
-    int i;
+    if (am_file_name) {
+      am_file = fopen(am_file_name, "r");
+      if (am_file) {
+        if (!do_first_pass(&symbol_table, am_file, am_file_name)) {
+          printf("First pass completed.\n");
+          rewind(am_file);
+          if (!do_second_pass(&translator, &symbol_table, am_file_name, am_file,
+                              &instruction_counter, &data_counter, argv[i])) {
+            printf("Second pass completed.\n");
 
-    for (i = 0; i < tokens.count; i++) {
-      printf("Token %d: %s\n", i + 1, tokens.tokens[i]);
+            print_ob_file(translator, am_file_name, &instruction_counter,
+                          &data_counter);
+            printf("Object file created.\n");
+
+            if (translator->internal_symbols) {
+              print_ent_file(translator, am_file_name);
+              printf("Entry file created.\n");
+            }
+
+            if (translator->external_symbols) {
+              print_ext_file(translator, am_file_name);
+              printf("External file created.\n");
+            }
+          }
+        }
+
+        fclose(am_file);
+      }
+
+      free(am_file_name);
+    } else {
+      fprintf(stderr, ERROR_CANNOT_READ, am_file_name);
     }
   }
-
-  /*printf("Enter a decimal number: ");
-
-  scanf("%d", &n);
-
-  binary = decimalToBinary(n);
-  base4 = decimalToBase4(n);
-  encoded = encodeBase4(base4);
-
-  if (binary) {
-    printf("Binary representation: %s\n", binary);
-    free(binary);
-  }
-
-  if (base4) {
-    printf("Base 4 representation: %s\n", base4);
-    free(base4);
-  }
-
-  if (encoded) {
-    printf("Encoded base 4 representation: %s\n", encoded);
-    free(encoded);
-  }*/
-
-  free_tokens(&tokens);
-
   return 0;
 }
