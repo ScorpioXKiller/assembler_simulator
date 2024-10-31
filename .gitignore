@@ -11,3 +11,7 @@
 
 # Visual Studio Code
 .vscode/
+.input/
+.output/
+.screenshots/
+valgrind-out.txt
