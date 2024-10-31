@@ -20,14 +20,9 @@ L1:     inc  K
         bne  LOOP
 END:    hlt
 .define len = 4
-        mcr m3_mcr
-            cmp r3, #sz
-            mov r3, LIST[sz]
-            SUB r2, r3
-            bne END
-        endmcr
-STR:    .string “abcdef”
+        
+STR:    .string "abcdef"
 
 LIST:   .data 6, -9, len
-        m3_mcr
+        m1_mcr
 K:      .data 22
